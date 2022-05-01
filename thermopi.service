@@ -1,0 +1,13 @@
+[Unit]
+Description=ThermoPi
+After=syslog.target network.target multi-user.target nodm.service
+Requires=nodm.service
+
+[Service]
+Type=notify
+Restart=on-failure
+ExecStart=/usr/bin/python3 -m thermopi.ui.menu.homepage.homepage
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

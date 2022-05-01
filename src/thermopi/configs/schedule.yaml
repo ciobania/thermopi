@@ -1,0 +1,41 @@
+monday:
+  interval:
+  - 06:00:
+      max: 23
+      min: 22
+tuesday:
+  interval:
+  - 07:00:
+      max: 23
+      min: 23
+wednesday:
+  interval:
+  - 07:00:
+      max: 23
+      min: 23
+thursday:
+  interval:
+  - 07:00:
+      max: 23
+      min: 23
+friday:
+  interval:
+  - 07:00:
+      max: 23
+      min: 23
+saturday:
+  interval:
+  - 07:00:
+      max: 23
+      min: 23
+sunday:
+  interval:
+  - 07:00:
+      max: 23
+      min: 23
+all_week:
+  interval:
+  - general_temp:
+      min: 22
+      max: 23
+      tolerance: 0.5

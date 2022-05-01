@@ -1,0 +1,7 @@
+This font is a derivative of the Apache Licensed Open Source font, Roboto, by Google.
+
+We have mainly added new characters to the design, including Roman Numerals, the Russian Ruble sign, an Interrobang, a Triple Prime mark, and changed a couple characters, specifically the numbers 1 & 4, the Quotation Mark, dollar sign, Apostrophe and ampersand.
+
+We have also made a few new widths and styles.
+
+UPDATE: Fixed Outline weight, added new distant tracked weights, improved file sizes, which reduce zip file size by about 2 MB.

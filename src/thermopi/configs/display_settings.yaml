@@ -1,0 +1,14 @@
+homepage:
+  bakground_color: !!python/tuple
+  - 59
+  - 110
+  - 165
+pinouts:
+  dc: 24
+  led: 5
+  pen: 26
+  rst: 25
+temp:
+  celsius_sign: "\xB0C"
+  degree_sign: "\xB0"
+  fahrenheit_sign: "\xB0F"

@@ -1,0 +1,4 @@
+relay_channel: 23
+bme_channel: 0
+ccs_channel: 1
+oled_channel: 2
