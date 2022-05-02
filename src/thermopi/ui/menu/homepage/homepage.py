@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# vim: set fileencoding=utf-8 :
+# author: 'ACIOBANI'
+
 import datetime
 import os
 import pygame
@@ -7,11 +12,12 @@ import socket
 import subprocess
 
 from datetime import timedelta
+from pygame_widgets.dropdown import Dropdown
 from time import time, monotonic
 
-from pygame_widgets.dropdown import Dropdown
-from thermopi import FONTS_DIR, IMAGES_DIR
-from thermopi.libs.ili9341.geometry import is_inside_polygon
+from thermopi import FONTS_DIR, IMAGES_DIR, LOGGER
+
+from thermopi.libs.thermostat.thermostat import Thermostat
 
 try:
     import RPi.GPIO as GPIO
@@ -22,13 +28,7 @@ try:
 except ModuleNotFoundError as _:
     GPIO = None
 
-# os.environ["SDL_WINDOWID"] = ":0.0"
-# os.environ["SDL_VIDEODRIVER"] = "X11"
 os.environ["SDL_FBDEV"] = "/dev/fb1"
-# os.environ["DISPLAY"] = ":0.0"
-# Comment out for now, as this is causing erratic behaviour with the mouse and event0
-# os.environ['SDL_MOUSEDRV'] = 'libinput'
-# os.environ['SDL_MOUSEDEV'] = '/dev/input/event0'
 
 # Initialize pygame
 WIDTH = 320
@@ -66,13 +66,15 @@ WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 WIN_BLUE = (59, 119, 188)
 
-
 pygame.display.set_caption("ThermoPi")
 pygame.mouse.set_visible(False)
 
 font_path = os.path.join(FONTS_DIR, 'FreeSerifItalic.ttf')
 
 START_TIME = time()
+GET_TEMP_TIME = time()
+RUN_HEAT_TIME = time()
+THERMOSTAT = Thermostat()
 
 
 def draw_text(text, text_col, x, y, font_size=0, center=1, bold=False, italic=False):
@@ -170,8 +172,28 @@ def get_pi_temp():
     result = subprocess.check_output('/usr/bin/vcgencmd measure_temp',
                                      shell=True,
                                      universal_newlines=True)
-    temp = result.strip().replace('\'', chr(176))[5:]
-    return temp
+    pi_temp = result.strip().replace('\'', chr(176))[5:]
+    return pi_temp
+
+
+def get_thermostat_data(temp_data):
+    relay_state = ""
+    tolerance = THERMOSTAT.schedule['all_week']['interval'][0]['general_temp']['tolerance']
+    min_temp = THERMOSTAT.schedule['all_week']['interval'][0]['general_temp']['min']
+    max_temp = THERMOSTAT.schedule['all_week']['interval'][0]['general_temp']['max']
+    if temp_data['temperature'] < min_temp or temp_data['temperature'] < min_temp + tolerance:
+        if not THERMOSTAT.get_relay_state(THERMOSTAT.cfg['relay_channel']):
+            THERMOSTAT.relay_on(THERMOSTAT.cfg['relay_channel'])
+            relay_state = "ON"
+    elif min_temp < temp_data['temperature'] <= max_temp or temp_data['temperature'] > max_temp:
+        if THERMOSTAT.get_relay_state(THERMOSTAT.cfg['relay_channel']):
+            THERMOSTAT.relay_off(THERMOSTAT.cfg['relay_channel'])
+            relay_state = "OFF"
+
+    LOGGER.info(THERMOSTAT.status_msg.format(relay_state,
+                                             datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S"),
+                                             temp_data['temperature'],
+                                             temp_data['humidity']))
 
 
 pygame.event.set_allowed([pygame.MOUSEBUTTONDOWN, pygame.QUIT])
@@ -230,27 +252,43 @@ def scheduler():
 
 
 def main():
+    global GET_TEMP_TIME, RUN_HEAT_TIME
     run_clock = True
-
-    new_temp = 20
+    temperature_data = None
+    new_temp = THERMOSTAT.schedule['all_week']['interval'][0]['general_temp']['min']
+    min_temp = THERMOSTAT.schedule['all_week']['interval'][0]['general_temp']['min']
+    max_temp = THERMOSTAT.schedule['all_week']['interval'][0]['general_temp']['max']
     menu = draw_menu()
 
     while run_clock:
         pen_down = False
 
+        # TODO: move following 120 seconds delay into scheduler config
+        if time() - GET_TEMP_TIME > 120 or not temperature_data:
+            GET_TEMP_TIME = time()
+            temperature_data = THERMOSTAT.get_thermostat_data()
+        if time() - RUN_HEAT_TIME > 900 or not temperature_data:
+            get_thermostat_data(temperature_data)
+            RUN_HEAT_TIME = time()
+
         draw_bg()
         draw_time(65, 230)
 
+        # Draw side buttons and temp
         up_temp = draw_up_temp_button(280, int(HEIGHT / 2) - 60)
         draw_text(f'{new_temp}°', BLACK, 300, int(HEIGHT / 2), 20)
         down_temp = draw_down_temp_button(280, int(HEIGHT / 2) + 20)
-        draw_text('L: 21°', BLACK, 20, 100, 20)
-        draw_text('M: 22°', BLACK, 20, 130, 20)
-        draw_text('S: 23°', BLACK, 20, 160, 20)
-        draw_text('23°', WHITE, int(WIDTH / 2), int(HEIGHT / 2), 60)
-        draw_text('22.5°', GREEN, int(WIDTH / 2) - 20, int(HEIGHT / 2) + 30, 20)
-        draw_text('|', BLACK, int(WIDTH / 2), int(HEIGHT / 2) + 30, 20)
-        draw_text('23.5°', RED, int(WIDTH / 2) + 20, int(HEIGHT / 2) + 30, 20)
+
+        # Draw satellites temperature
+        draw_text('L: 21°', BLACK, 20, 100, 20)  # TODO: this will come from BLE satellites
+        draw_text('M: 22°', BLACK, 20, 130, 20)  # TODO: this will come from BLE satellites
+        draw_text('S: 23°', BLACK, 20, 160, 20)  # TODO: this will come from BLE satellites
+
+        # Draw main, min and max temp
+        draw_text(f"{int(temperature_data['temperature'])}°", WHITE, int(WIDTH / 2), int(HEIGHT / 2), 60)
+        draw_text(f"{min_temp}°", GREEN, int(WIDTH / 2) - 20, int(HEIGHT / 2) + 30, 20)
+        draw_text("|", BLACK, int(WIDTH / 2), int(HEIGHT / 2) + 30, 20)
+        draw_text(f"{max_temp}°", RED, int(WIDTH / 2) + 20, int(HEIGHT / 2) + 30, 20)
 
         selected_menu = menu.getSelected()
         if selected_menu == 2:
@@ -273,6 +311,14 @@ def main():
                     if down_temp.collidepoint(event.pos):
                         new_temp -= 0.5
                         draw_text(f'{new_temp}°', BLACK, 300, int(HEIGHT / 2), 20)
+
+        # TODO: review when we can safely trigger this, without crashing the display (aka display goes white)
+        # if new_temp > temperature_data['temperature']:
+        #     if not THERMOSTAT.get_relay_state(THERMOSTAT.cfg['relay_channel']):
+        #         THERMOSTAT.relay_on(THERMOSTAT.cfg['relay_channel'])
+        # if new_temp < temperature_data['temperature']:
+        #     if THERMOSTAT.get_relay_state(THERMOSTAT.cfg['relay_channel']):
+        #         THERMOSTAT.relay_off(THERMOSTAT.cfg['relay_channel'])
 
         pygame_widgets.update(events)
         pygame.display.update()
