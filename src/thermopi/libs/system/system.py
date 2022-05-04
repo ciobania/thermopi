@@ -6,6 +6,11 @@ import subprocess
 
 
 def get_pi_temp():
+    """
+    Return Pi CPU temperature.
+    :return: formatted float temperature, with degree sign in Celsius
+    :rtype: string
+    """
     try:
         temp_cmd = '/usr/bin/vcgencmd measure_temp'
         result = subprocess.check_output(temp_cmd,
