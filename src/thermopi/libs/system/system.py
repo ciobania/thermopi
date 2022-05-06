@@ -3,6 +3,7 @@
 # vim: set fileencoding=utf-8 :
 # author: 'ACIOBANI'
 import subprocess
+from socket import gethostname, gethostbyname
 
 
 def get_pi_temp():
@@ -21,3 +22,16 @@ def get_pi_temp():
     except subprocess.CalledProcessError as _:
         pi_temp = f"19.85{chr(176)}C"
     return pi_temp
+
+
+def get_ip_and_hostname():
+    """
+    Get the host system IP address and hostname.
+    :return: IP address and hostname
+    :rtype: dict
+    """
+    host_name = gethostname()
+    ip_address = gethostbyname(host_name)
+
+    return {'host_name': host_name,
+            'ip_address': ip_address}

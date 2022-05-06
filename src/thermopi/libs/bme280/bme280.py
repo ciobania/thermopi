@@ -25,14 +25,18 @@
 import math
 from datetime import datetime
 
-import smbus2 as smbus
+try:
+    import smbus2 as smbus
+
+    bus = smbus.SMBus(1)  # Rev 2 Pi, Pi 2 & Pi 3 uses bus 1
+except ModuleNotFoundError as _:
+    pass
+
 import time
 from ctypes import c_short
 
 from thermopi.libs.bme280.bme_280_params import *
 from thermopi.libs.tca9548a import tca9548a
-
-bus = smbus.SMBus(1)  # Rev 2 Pi, Pi 2 & Pi 3 uses bus 1
 
 
 def set_temp_offset(value):
@@ -136,58 +140,66 @@ def read_temperature(t_fine):
 
 def read_chip_id(address=DEVICE_I2C_ADDRESS):
     # Chip ID Register Address
-    (chip_id, chip_version) = bus.read_i2c_block_data(address, REG_ID, 2)
+    try:
+        (chip_id, chip_version) = bus.read_i2c_block_data(address, REG_ID, 2)
+    except NameError as _:
+        chip_id, chip_version = 0, 0
     return chip_id, chip_version
 
 
 def read_all_values(address=DEVICE_I2C_ADDRESS):
-    bus.write_byte_data(address, REG_CONTROL_HUM, OVERSAMPLE_HUM)
-    control = OVERSAMPLE_TEMP << 5 | OVERSAMPLE_PRES << 2 | MODE
-    bus.write_byte_data(address, REG_CONTROL, control)
+    try:
+        bus.write_byte_data(address, REG_CONTROL_HUM, OVERSAMPLE_HUM)
+        control = OVERSAMPLE_TEMP << 5 | OVERSAMPLE_PRES << 2 | MODE
+        bus.write_byte_data(address, REG_CONTROL, control)
 
-    cal1, cal2, cal3 = get_calibration_data(address)
+        cal1, cal2, cal3 = get_calibration_data(address)
 
-    dig_t1, dig_t2, dig_t3 = get_temperature_byte_data(cal1)
-    dig_p1, dig_p2, dig_p3, dig_p4, dig_p5, dig_p6, dig_p7, dig_p8, dig_p9 = get_pressure_byte_data(cal1)
-    dig_h1, dig_h2, dig_h3, dig_h4, dig_h5, dig_h6 = get_humidity_byte_data(cal2, cal3)
+        dig_t1, dig_t2, dig_t3 = get_temperature_byte_data(cal1)
+        dig_p1, dig_p2, dig_p3, dig_p4, dig_p5, dig_p6, dig_p7, dig_p8, dig_p9 = get_pressure_byte_data(cal1)
+        dig_h1, dig_h2, dig_h3, dig_h4, dig_h5, dig_h6 = get_humidity_byte_data(cal2, cal3)
 
-    # Wait in ms (Datasheet Appendix B: Measurement time and current calculation)
-    wait_time = 1.25 + (2.3 * OVERSAMPLE_TEMP) + ((2.3 * OVERSAMPLE_PRES) + 0.575) + ((2.3 * OVERSAMPLE_HUM) + 0.575)
-    time.sleep(wait_time / 1000)  # Wait the required time
+        # Wait in ms (Datasheet Appendix B: Measurement time and current calculation)
+        wait_time = 1.25 + (2.3 * OVERSAMPLE_TEMP) + ((2.3 * OVERSAMPLE_PRES) + 0.575) + ((2.3 * OVERSAMPLE_HUM) + 0.575)
+        time.sleep(wait_time / 1000)  # Wait the required time
 
-    # Read temperature/pressure/humidity
-    data = bus.read_i2c_block_data(address, REG_DATA, 8)
-    pres_raw = (data[0] << 12) | (data[1] << 4) | (data[2] >> 4)
-    hum_raw = (data[6] << 8) | data[7]
+        # Read temperature/pressure/humidity
+        data = bus.read_i2c_block_data(address, REG_DATA, 8)
+        pres_raw = (data[0] << 12) | (data[1] << 4) | (data[2] >> 4)
+        hum_raw = (data[6] << 8) | data[7]
 
-    t_fine = get_raw_temperature(data, dig_t1, dig_t2, dig_t3)
-    temperature = read_temperature(t_fine)
+        t_fine = get_raw_temperature(data, dig_t1, dig_t2, dig_t3)
+        temperature = read_temperature(t_fine)
 
-    # Refine pressure and adjust for temperature
-    var1 = t_fine / 2.0 - 64000.0
-    var2 = var1 * var1 * dig_p6 / 32768.0
-    var2 = var2 + var1 * dig_p5 * 2.0
-    var2 = var2 / 4.0 + dig_p4 * 65536.0
-    var1 = (dig_p3 * var1 * var1 / 524288.0 + dig_p2 * var1) / 524288.0
-    var1 = (1.0 + var1 / 32768.0) * dig_p1
-    if var1 == 0:
-        pressure = 0
-    else:
-        pressure = 1048576.0 - pres_raw
-        pressure = ((pressure - var2 / 4096.0) * 6250.0) / var1
-        var1 = dig_p9 * pressure * pressure / 2147483648.0
-        var2 = pressure * dig_p8 / 32768.0
-        pressure = pressure + (var1 + var2 + dig_p7) / 16.0
+        # Refine pressure and adjust for temperature
+        var1 = t_fine / 2.0 - 64000.0
+        var2 = var1 * var1 * dig_p6 / 32768.0
+        var2 = var2 + var1 * dig_p5 * 2.0
+        var2 = var2 / 4.0 + dig_p4 * 65536.0
+        var1 = (dig_p3 * var1 * var1 / 524288.0 + dig_p2 * var1) / 524288.0
+        var1 = (1.0 + var1 / 32768.0) * dig_p1
+        if var1 == 0:
+            pressure = 0
+        else:
+            pressure = 1048576.0 - pres_raw
+            pressure = ((pressure - var2 / 4096.0) * 6250.0) / var1
+            var1 = dig_p9 * pressure * pressure / 2147483648.0
+            var2 = pressure * dig_p8 / 32768.0
+            pressure = pressure + (var1 + var2 + dig_p7) / 16.0
 
-    # Refine humidity
-    humidity = t_fine - 76800.0
-    humidity = (hum_raw - (dig_h4 * 64.0 + dig_h5 / 16384.0 * humidity)) * (
-            dig_h2 / 65536.0 * (1.0 + dig_h6 / 67108864.0 * humidity * (1.0 + dig_h3 / 67108864.0 * humidity)))
-    humidity = humidity * (1.0 - dig_h1 * humidity / 524288.0)
-    if humidity > 100:
-        humidity = 100
-    elif humidity < 0:
-        humidity = 0
+        # Refine humidity
+        humidity = t_fine - 76800.0
+        humidity = (hum_raw - (dig_h4 * 64.0 + dig_h5 / 16384.0 * humidity)) * (
+                dig_h2 / 65536.0 * (1.0 + dig_h6 / 67108864.0 * humidity * (1.0 + dig_h3 / 67108864.0 * humidity)))
+        humidity = humidity * (1.0 - dig_h1 * humidity / 524288.0)
+        if humidity > 100:
+            humidity = 100
+        elif humidity < 0:
+            humidity = 0
+    except NameError as _:
+        temperature = 1985
+        pressure = 198500
+        humidity = 19.85
 
     return temperature / 100.0, pressure / 100.0, humidity
 

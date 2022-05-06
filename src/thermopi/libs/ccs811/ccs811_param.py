@@ -4,7 +4,7 @@
 # author: 'ACIOBANI'
 
 # I2C channel used
-channel = 1  # /dev/i2c-1
+CHANNEL = 1  # /dev/i2c-1
 
 #  CCS811 defaults to address 0x5A
 CCS811_I2C_ADDRESS = 0x5A  # alt address 0x5B

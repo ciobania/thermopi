@@ -2,10 +2,15 @@
 # -*- coding: utf-8 -*-
 # vim: set fileencoding=utf-8 :
 # author: 'ACIOBANI'
-import RPi.GPIO as GPIO
+try:
+    import RPi.GPIO as GPIO
+
+    GPIO.setmode(GPIO.BCM)
+except ModuleNotFoundError as _:
+    pass
+
 import time
 
-GPIO.setmode(GPIO.BCM)
 
 
 def get_relay_state(channel):
@@ -14,7 +19,10 @@ def get_relay_state(channel):
 
 def relay_setup(channel):
     # GPIO setup
-    GPIO.setup(channel, GPIO.OUT)
+    try:
+        GPIO.setup(channel, GPIO.OUT)
+    except (ImportError, NameError) as _:
+        print('Running on ')
 
 
 def relay_on(pin):

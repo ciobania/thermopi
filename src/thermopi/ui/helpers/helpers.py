@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 # vim: set fileencoding=utf-8 :
 # author: 'ACIOBANI'
+from enum import Enum
+
 from PIL import ImageChops, ImageDraw, ImageFont
 from PIL import Image
 
@@ -52,3 +54,16 @@ def draw_text(draw, text, position, font, color, bg_color="black", landscape=Tru
     im = _draw_text(str(text), font, text_color=color, bg_color=bg_color, rotate_degree=rotate_degree)
     draw.paste_image(im, position)
     draw.text_rotated(position, str(text), rotate_degree, font=font, fill=color)
+
+
+class ExtendedEnum(Enum):
+    def __get__(self, instance, owner):
+        return self.value
+
+
+class DisplayBgrColor(ExtendedEnum):
+    RED = (135, 62, 35)
+    GREEN = (0, 255, 0)
+    WHITE = (255, 255, 255)
+    BLACK = (0, 0, 0)
+    WIN_BLUE = (59, 119, 188)

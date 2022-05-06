@@ -93,7 +93,7 @@ Dragos Iosub, Bucharest 2020.
 https://itbrainpower.net
 """
 
-from libs.tca9548a import tca9548a
+from thermopi.libs.tca9548a import tca9548a
 from ccs811 import *
 
 tca9548a.change_multiplexer_channel(0x70, 1)

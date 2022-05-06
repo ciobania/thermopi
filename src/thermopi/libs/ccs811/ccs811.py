@@ -43,9 +43,15 @@
  */
 """
 
-import smbus2 as smbus
 
-import RPi.GPIO as GPIO
+try:
+    import smbus2 as smbus
+    import RPi.GPIO as GPIO
+
+    bus = smbus.SMBus(CHANNEL)
+except ModuleNotFoundError as _:
+    pass
+
 from time import sleep
 
 from thermopi.libs.ccs811.ccs811_param import *
@@ -66,7 +72,7 @@ def ccs811GPIOInit():
     GPIO.setmode(GPIO.BOARD)
     GPIO.setwarnings(False)
     # GPIO.cleanup()
-    print("init CCS811 control GPIOs")
+    print("Init CCS811 control GPIOs")
 
     try:
         GPIO.setup(CCS811_RESET_PIN, GPIO.IN)
@@ -372,7 +378,6 @@ def ccs811GetTVOC():
 # Initialize I2C (SMBus)
 try:
     configContents = ccs811ReadRegister(CCS811_HW_ID)
-    print("I2C alredy loaded")
-except:
-    bus = smbus.SMBus(channel)
-    print("in exception smbus")
+    print("I2C already loaded")
+except (Exception, ) as _:
+    print(f"In exception SMBus: {_}")
