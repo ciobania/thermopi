@@ -61,7 +61,7 @@ RUN_HEAT_TIME = time()
 # THERMOSTAT = Thermostat()
 
 
-def check_display_light_status(self, pen_status=False):
+def check_display_light_status(pen_status=False):
     global START_TIME
     if GPIO:
         now_time = time()
@@ -83,10 +83,11 @@ win = m.make_current()
 
 run_display = True
 while run_display:
+    pen_status = False
     win.screen_update()
     events = pygame.event.get()
 
-    if win.drop_down.getSelected() == 1:
+    if win.drop_down.getSelected() in (1, None):
         homepage(win, events)
     elif win.drop_down.getSelected() == 2:
         scheduler(win)
@@ -96,9 +97,15 @@ while run_display:
         print(f'Restarting with sys.argv:: {sys.argv}')
         os.execv(sys.executable, ['python3'] + sys.argv)
 
+    for event in events:
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            mouse_presses = pygame.mouse.get_pressed()
+            if mouse_presses[0]:
+                pen_status = True
+
     pygame_widgets.update(events)
     pygame.display.update()
-
+    check_display_light_status(pen_status=pen_status)
 
 pygame.quit()
 sys.exit()

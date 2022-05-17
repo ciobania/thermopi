@@ -4,7 +4,6 @@ import sys
 
 from datetime import datetime
 
-from twisted.logger import Logger
 
 MODULE_PATH = os.path.dirname(__file__)
 
@@ -51,5 +50,3 @@ SH.setFormatter(LOG_FORMATTER)
 
 LOGGER.addHandler(FH)
 LOGGER.addHandler(SH)
-
-LOG = Logger(namespace="thermopi_ns")

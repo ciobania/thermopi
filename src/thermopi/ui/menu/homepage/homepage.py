@@ -40,7 +40,7 @@ def draw_down_temp_button(win, x, y):
 def _draw_arrow_button(win, x, y, angle):
     _arrow_png_path = os.path.join(IMAGES_DIR, 'arrow.png')
     _arrow = pygame.image.load(_arrow_png_path)
-    _arrow = pygame.transform.scale(_arrow, (40, 40))
+    _arrow = pygame.transform.scale(_arrow, (45, 45))
     _arrow = pygame.transform.rotate(_arrow, angle)
     return win.screen.blit(_arrow, (x, y))  # x, y coordinates
 
@@ -62,8 +62,7 @@ def draw_button(win, text, x, y):
 def get_thermostat_data(temp_data):
     relay_state = ""
     tolerance = THERMOSTAT.schedule['all_week']['interval'][0]['general_temp']['tolerance']
-    min_temp = THERMOSTAT.schedule['all_week']['interval'][0]['general_temp']['min']
-    max_temp = THERMOSTAT.schedule['all_week']['interval'][0]['general_temp']['max']
+
     if temp_data['temperature'] < min_temp or temp_data['temperature'] < min_temp + tolerance:
         if not THERMOSTAT.get_relay_state(THERMOSTAT.cfg['relay_channel']):
             THERMOSTAT.relay_on(THERMOSTAT.cfg['relay_channel'])
@@ -87,19 +86,21 @@ max_temp = THERMOSTAT.schedule['all_week']['interval'][0]['general_temp']['max']
 def homepage(win, events):
     global GET_TEMP_TIME, RUN_HEAT_TIME, new_temp
     temperature_data = None
+    air_quality_data = None
 
     # TODO: move following 120 seconds delay into scheduler config
     if time() - GET_TEMP_TIME > 120 or not temperature_data:
         GET_TEMP_TIME = time()
         temperature_data = THERMOSTAT.get_thermostat_data()
+        air_quality_data = THERMOSTAT.get_air_quality_data()
     if time() - RUN_HEAT_TIME > 900 or not temperature_data:
         get_thermostat_data(temperature_data)
         RUN_HEAT_TIME = time()
 
     # Draw side buttons and temp
-    up_temp = draw_up_temp_button(win, 280, int(win.height / 2) - 60)
-    win.draw_text(f'{new_temp}°', win.colors.BLACK, 300, int(win.height / 2), 20)
-    down_temp = draw_down_temp_button(win, 280, int(win.height / 2) + 20)
+    up_temp = draw_up_temp_button(win, 270, int(win.height / 2) - 50)
+    win.draw_text(f'{new_temp}°', win.colors.BLACK, 295, int(win.height / 2) + 10, 20)
+    down_temp = draw_down_temp_button(win, 270, int(win.height / 2) + 30)
 
     # Draw satellites temperature
     win.draw_text('L: 21°', win.colors.BLACK, 20, 100, 20)  # TODO: this will come from BLE satellites
@@ -116,16 +117,20 @@ def homepage(win, events):
     win.draw_text("|", win.colors.BLACK, int(win.width / 2), int(win.height / 2) + 30, 20)
     win.draw_text(f"{max_temp}°", win.colors.RED, int(win.width / 2) + 20, int(win.height / 2) + 30, 20)
 
+    win.draw_text(f"Hum:  {temperature_data['humidity']:05}%", win.colors.WHITE, 285, int(win.height / 2) - 110, 15)
+    win.draw_text(f"TVOC: {air_quality_data['tvoc']:05}", win.colors.WHITE, 285, int(win.height / 2) - 90, 15)
+    win.draw_text(f"eCO2: {air_quality_data['eco2']:05}", win.colors.WHITE, 285, int(win.height / 2) - 70, 15)
+
     for event in events:
         if event.type == pygame.MOUSEBUTTONDOWN:
             mouse_presses = pygame.mouse.get_pressed()
             if mouse_presses[0]:
                 if up_temp.collidepoint(event.pos):
                     new_temp += 0.5
-                    win.draw_text(f'{new_temp}°', win.colors.BLACK, 300, int(win.height / 2), 20)
+                    win.draw_text(f'{new_temp}°', win.colors.BLACK, 295, int(win.height / 2) + 10, 20)
                 if down_temp.collidepoint(event.pos):
                     new_temp -= 0.5
-                    win.draw_text(f'{new_temp}°', win.colors.BLACK, 300, int(win.height / 2), 20)
+                    win.draw_text(f'{new_temp}°', win.colors.BLACK, 295, int(win.height / 2) + 10, 20)
 
     # TODO: review when we can safely trigger this, without crashing the display (aka display goes white)
     # if new_temp > temperature_data['temperature']:

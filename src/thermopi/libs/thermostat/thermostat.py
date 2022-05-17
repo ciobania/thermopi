@@ -3,51 +3,47 @@
 # vim: set fileencoding=utf-8 :
 # author: 'ACIOBANI'
 import os
-from datetime import datetime
-from time import sleep
-
 import yaml
+import time
+
+from datetime import datetime
 
 from thermopi import CFG_DIR, LOGGER
 from thermopi.libs.bme280.bme280 import read_chip_id, read_all_values
-from thermopi.libs.ccs811.ccs811 import ccs811Begin, ccs811SetEnvironmentalData, ccs811CheckDataAndUpdate, ccs811GetCO2, \
-    ccs811GetTVOC, ccs811CheckForError, ccs811PrintError
-from thermopi.libs.ccs811.ccs811_param import CCS811_driveMode_1sec
+from thermopi.libs.ccs811.ccs811 import CCS811
 from thermopi.libs.relay.relay import relay_setup, relay_on, relay_off, get_relay_state
 from thermopi.libs.tca9548a import tca9548a
 
 
 class Thermostat:
 
-    def __init__(self):
+    def __init__(self, start_time=datetime.now()):
         self.status_msg = "Turned {} at time: {} with temperature: {} and humidity: {}"
         self.cfg = yaml.safe_load(open(os.path.join(CFG_DIR, 'thermostat_cfg.yaml'), 'r'))
         self.schedule = yaml.safe_load(open(os.path.join(CFG_DIR, 'schedule.yaml'), 'r'))
+        self.start_time = start_time
         relay_setup(self.cfg['relay_channel'])
-
-    @staticmethod
-    def get_thermostat_data():
+        self.ccs811 = CCS811()
         tca9548a.change_multiplexer_channel(0x70, 0)
-        chip_id, chip_version = read_chip_id()
-        temperature, pressure, humidity = read_all_values()
+        self.chip_id, self.chip_version = read_chip_id()
+
+    def _print_debugging_info(self, temperature, pressure, humidity, tvoc, eco2):
 
         msg_header = "\n=============================================\n"
         msg_body = ""
-        # print("Chip ID     :", chip_id)
-        # print("Version     :", chip_version)
 
-        # print("Temperature : ", temperature, "C")
-        # print("Pressure : ", pressure, "hPa")
-        # print("Humidity : ", humidity, "%")
         print_msg = '| {:<11} | {:>23} {:<3} |\n'
         time_now = str(datetime.now())[:23]
 
-        status_data = {"Chip ID": {'value': chip_id, 'measurement_unit': ''},
-                       "Version": {'value': chip_version, 'measurement_unit': ''},
+        status_data = {"Chip ID": {'value': self.chip_id, 'measurement_unit': ''},
+                       "Version": {'value': self.chip_version, 'measurement_unit': ''},
                        "Temperature": {'value': temperature, 'measurement_unit': '°C'},
                        "Pressure": {'value': pressure, 'measurement_unit': 'hPa'},
                        "Humidity": {'value': humidity, 'measurement_unit': '%'},
+                       "eCO2": {'value': eco2, 'measurement_unit': 'ppm'},
+                       "TVOC": {'value': tvoc, 'measurement_unit': 'ppb'},
                        "Date": {"value": time_now, 'measurement_unit': ''}}
+
         for metric_stat, metric_data in status_data.items():
             if not msg_body:
                 msg_body = msg_header + msg_body
@@ -55,30 +51,29 @@ class Thermostat:
         msg_footer = "=============================================\n"
         msg_body += msg_footer
         LOGGER.info(msg_body)
+
+    @staticmethod
+    def get_thermostat_data():
+        tca9548a.change_multiplexer_channel(0x70, 0)
+        temperature, pressure, humidity = read_all_values()
+
         return {'temperature': temperature, 'pressure': pressure, 'humidity': humidity}
 
     def get_air_quality_data(self):
-        thermostat_data = self.get_thermostat_data()
-
+        # thermostat_data = self.get_thermostat_data()
         tca9548a.change_multiplexer_channel(0x70, 1)
-        ccs811Begin(CCS811_driveMode_1sec)  # start CCS811, data update rate at 1sec
-        try:
-            ccs811SetEnvironmentalData(temperature=thermostat_data['temperature'],
-                                       relativeHumidity=int(thermostat_data['humidity']))
+        self.ccs811.read_data()
 
-            if ccs811CheckDataAndUpdate():
-                co2 = ccs811GetCO2()
-                t_voc = ccs811GetTVOC()
-                print("CO2 : %d ppm" % co2)
-                print("tVOC : %d ppb" % t_voc)
-            elif ccs811CheckForError():
-                ccs811PrintError()
+        air_quality_data = {'tvoc': self.ccs811.get_tvoc(),
+                            'eco2': self.ccs811.get_eco2(),
+                            'status': self.ccs811.get_status(),
+                            'raw_data': self.ccs811.get_raw_data(),
+                            'error_id': self.ccs811.get_error_id()}
 
-            sleep(2)
-        except Exception as _:
-            print("error happened", _)
+        return air_quality_data
 
     def run(self):
+        air_data = self.get_air_quality_data()
         temp_data = self.get_thermostat_data()
         tolerance = self.schedule['all_week']['interval'][0]['general_temp']['tolerance']
         min_temp = self.schedule['all_week']['interval'][0]['general_temp']['min']
@@ -97,3 +92,5 @@ class Thermostat:
                                                    datetime.now().strftime("%d-%m-%Y %H:%M:%S"),
                                                    temp_data['temperature'],
                                                    temp_data['humidity']))
+
+        exit(0)
